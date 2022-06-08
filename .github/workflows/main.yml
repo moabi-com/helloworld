@@ -1,0 +1,53 @@
+# This is a basic workflow to help you get started with Actions
+
+name: CI
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the "main" branch
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+
+      # Runs a set of commands using the runners shell
+      - name: Moabi integration
+        run: |
+          echo "Running unit tests..."
+          make
+          curl -X "POST" "https://${moabi_host}/api/uploads" -H "accept: application/ld+json" -H "apikey: ${moabi_api_key}" -H "Content-Type: multipart/form-data" -F "software=@./hello" -o moabi.id.json
+          BINARYID=`grep "[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*" -o moabi.id.json`
+          echo "UUID ${BINARYID}"
+          echo "Waiting on ${BINARYID}"
+          MOABISTATUS="INITIAL"
+          while [ "$MOABISTATUS" != "SCANNED" ] ; do
+          sleep 60
+          curl -X "GET" "https://${moabi_host}/api/uploads/${BINARYID}" -H "accept: application/ld+json" -H "apikey: ${moabi_api_key}" -o moabi.status.json
+          MOABISTATUS="$(cat moabi.status.json| tr ',' "\n" | grep status |awk -F "\:" '{print $2}'|tr -d '"')"
+          echo "CURRENT STATUS '${MOABISTATUS}'"
+          done
+          echo "analysis performed"
+          MOABIRESULTS=`cat moabi.status.json| tr ',' "\n" | grep KPIsStatus |awk -F "\:" '{print $2}'|tr -d '"'`
+          echo "RESULTS ${MOABIRESULTS}"
+          if [ $MOABIRESULTS == "PASS" ] ; then
+          echo "Build successful"
+          else
+          echo "Build failed"
+          exit -1
+          fi
+          echo "Tests complete."
