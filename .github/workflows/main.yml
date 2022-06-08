@@ -27,7 +27,7 @@ jobs:
 
       # Runs a set of commands using the runners shell
       - name: Moabi integration
-        with: # Set the secret as an input
+        env: # Define Secrets Variables
           moabi_host: ${{ secrets.MOABI_HOST }}
           moabi_api_key: ${{ secrets.MOABI_API_KEY }}
         run: |
